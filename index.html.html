@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Interactive Reading</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f9f9f9;
+      color: #333;
+    }
+    header {
+      padding: 20px;
+      background-color: #4CAF50;
+      color: white;
+    }
+    textarea {
+      width: 100%;
+      height: 100px;
+      font-size: 16px;
+      padding: 10px;
+      margin: 10px 0;
+    }
+    button {
+      margin: 5px 5px 5px 0;
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: row;
+      padding: 20px;
+      gap: 20px;
+    }
+
+    #textColumn {
+      flex: 2;
+      min-width: 60%;
+    }
+
+    #infoColumn {
+      flex: 1;
+      min-width: 35%;
+      position: sticky;
+      top: 10px;
+      align-self: flex-start;
+      max-height: 95vh;
+      overflow-y: auto;
+      background: #f1f1f1;
+      padding: 10px;
+      border-left: 2px solid #ccc;
+    }
+
+    #textDisplay {
+      line-height: 1.6;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fff;
+      min-height: 150px;
+    }
+
+    .word {
+      cursor: pointer;
+      padding: 2px;
+      border-radius: 4px;
+    }
+    .word:hover {
+      background-color: #e0f7fa;
+    }
+
+    #definitionBox {
+      margin-top: 15px;
+      padding: 10px;
+      border: 1px solid #aaa;
+      background: #eef;
+    }
+
+    #notebook {
+      margin-top: 30px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h2>📖 Interactive Reading</h2>
+    <textarea id="textInput" placeholder="Paste your text here..."></textarea>
+    <br>
+    <button onclick="loadText()">Load Text</button>
+  </header>
+
+  <div class="container">
+    <div id="textColumn">
+      <div id="textDisplay"></div>
+    </div>
+
+    <div id="infoColumn">
+      <div id="definitionBox">Click on any word to get its info.</div>
+      <div id="notebook">
+        <h3>📒 Saved Words</h3>
+        <button onclick="exportCSV()">Export CSV</button>
+        <button onclick="exportPDF()">Export PDF</button>
+        <button onclick="clearNotebook()">Clear Notebook</button>
+        <table id="savedWordsTable">
+          <thead>
+            <tr><th>Word</th><th>Meaning</th><th>Thesaurus</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS remains unchanged -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+ const savedWords = JSON.parse(localStorage.getItem('savedWords') || '[]');
+    const synth = window.speechSynthesis;
+
+    function loadText() {
+      const input = document.getElementById("textInput").value;
+      const words = input.split(/(\s+)/);
+      const display = document.getElementById("textDisplay");
+      display.innerHTML = '';
+      words.forEach(word => {
+        if (/\s+/.test(word)) {
+          display.appendChild(document.createTextNode(word));
+        } else {
+          const span = document.createElement("span");
+          span.textContent = word;
+          span.className = "word";
+          span.onclick = () => handleClick(word);
+          display.appendChild(span);
+        }
+      });
+    }
+
+    async function handleClick(word) {
+  const definitionBox = document.getElementById("definitionBox");
+  definitionBox.innerHTML = `<b>${word}</b>... loading...`;
+
+  try {
+    const defRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+    const defData = await defRes.json();
+    const definition = defData[0]?.meanings[0]?.definitions[0]?.definition || "No definition found";
+    const ipa = defData[0]?.phonetics?.[0]?.text || "";
+
+    const transRes = await fetch("https://plain-snow-e164.chauminh911.workers.dev", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify([{ Text: word }])
+});
+
+    const transData = await transRes.json();
+    const translation = transData[0]?.translations[0]?.text || "(translation failed)";
+
+    let synonyms = "(none)";
+    try {
+      const synRes = await fetch(`https://api.datamuse.com/words?rel_syn=${word}`);
+      let synData = await synRes.json();
+      if (!synData || synData.length < 2) {
+        const altSynRes = await fetch(`https://api.datamuse.com/words?ml=${word}`);
+        synData = await altSynRes.json();
+      }
+
+      const filtered = synData
+        .map(obj => obj.word)
+        .filter((w, i, arr) => w.toLowerCase() !== word.toLowerCase() && arr.indexOf(w) === i)
+        .slice(0, 5);
+      synonyms = filtered.length > 0 ? filtered.join(', ') : "(none)";
+    } catch (e) {
+      console.error("Synonym fetch error:", e);
+      synonyms = "(error)";
+    }
+
+    definitionBox.innerHTML = `
+      <b>${word}</b> <span style="color: gray;">${ipa}</span><br>
+      <b>Definition:</b> ${definition}<br>
+      <b>Vietnamese:</b> ${translation}<br>
+      <b>Synonyms:</b> ${synonyms}<br><br>
+      <button onclick="speak('${word}')">🔊 Pronounce</button>
+      <button onclick="saveWord('${word}', '${translation.replace(/'/g, "\\'")}', '${synonyms.replace(/'/g, "\\'")}')">💾 Save Word</button>
+    `;
+  } catch (err) {
+    console.error("Error loading word data:", err);
+    definitionBox.innerHTML = `<b>${word}</b><br><span style="color: red;">Failed to load data.</span>`;
+  }
+}
+
+
+    function speak(word) {
+      const utterance = new SpeechSynthesisUtterance(word);
+      utterance.lang = "en-US";
+      synth.speak(utterance);
+    }
+
+    function saveWord(word, meaning, synonyms) {
+      if (!savedWords.find(w => w.word === word)) {
+        savedWords.push({ word, meaning, synonyms });
+        localStorage.setItem('savedWords', JSON.stringify(savedWords));
+        renderNotebook();
+      }
+    }
+
+    function renderNotebook() {
+      const tbody = document.querySelector("#savedWordsTable tbody");
+      tbody.innerHTML = '';
+      savedWords.forEach(({ word, meaning, synonyms }) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${word}</td><td>${meaning}</td><td>${synonyms}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    function clearNotebook() {
+      localStorage.removeItem('savedWords');
+      savedWords.length = 0;
+      renderNotebook();
+    }
+
+    function exportCSV() {
+      let csv = 'Word,Meaning,Thesaurus\n';
+      savedWords.forEach(w => {
+        csv += `${w.word},${w.meaning},${w.synonyms}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'notebook.csv';
+      a.click();
+    }
+
+    function exportPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text("Saved Words", 10, 10);
+      let y = 20;
+      savedWords.forEach(({ word, meaning, synonyms }) => {
+        doc.text(`${word}: ${meaning} | Synonyms: ${synonyms}`, 10, y);
+        y += 10;
+      });
+      doc.save("notebook.pdf");
+    }
+
+    renderNotebook();
+
+  </script>
+</body>
+</html>
