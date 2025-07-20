@@ -49,134 +49,138 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script>
-    const savedWords = JSON.parse(localStorage.getItem('savedWords') || '[]');
-    const synth = window.speechSynthesis;
-    const workerBase = 'https://young-tree-620c.chauminh911.workers.dev?url=';
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+  const savedWords = JSON.parse(localStorage.getItem('savedWords') || '[]');
+  const synth = window.speechSynthesis;
+  const workerBase = 'https://young-tree-620c.chauminh911.workers.dev';
 
-    function loadText() {
-      const input = document.getElementById("textInput").value;
-      const words = input.split(/(\s+)/);
-      const display = document.getElementById("textDisplay");
-      display.innerHTML = '';
-      words.forEach(word => {
-        if (/\s+/.test(word)) {
-          display.appendChild(document.createTextNode(word));
-        } else {
-          const span = document.createElement("span");
-          span.textContent = word;
-          span.className = "word";
-          span.onclick = () => handleClick(word);
-          display.appendChild(span);
-        }
-      });
-    }
-
-    async function handleClick(word) {
-      const definitionBox = document.getElementById("definitionBox");
-      definitionBox.innerHTML = `<b>${word}</b>... loading...`;
-
-      try {
-        // Dictionary API
-        const dictRes = await fetch(workerBase + encodeURIComponent(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`));
-        const dictData = await dictRes.json();
-        const definition = dictData[0]?.meanings[0]?.definitions[0]?.definition || "No definition found";
-        const ipa = dictData[0]?.phonetics?.[0]?.text || "";
-
-        // Microsoft Translator
-        const transRes = await fetch(workerBase + encodeURIComponent('https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=en&to=vi'), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify([{ Text: word }])
-        });
-        const transData = await transRes.json();
-        const translation = transData[0]?.translations[0]?.text || "(translation failed)";
-
-        // Datamuse Synonyms
-        const synRes = await fetch(workerBase + encodeURIComponent(`https://api.datamuse.com/words?rel_syn=${word}`));
-        let synData = await synRes.json();
-        if (!synData || synData.length < 2) {
-          const altSynRes = await fetch(workerBase + encodeURIComponent(`https://api.datamuse.com/words?ml=${word}`));
-          synData = await altSynRes.json();
-        }
-        const filtered = synData
-          .map(obj => obj.word)
-          .filter((w, i, arr) => w.toLowerCase() !== word.toLowerCase() && arr.indexOf(w) === i)
-          .slice(0, 5);
-        const synonyms = filtered.length > 0 ? filtered.join(', ') : "(none)";
-
-        definitionBox.innerHTML = `
-          <b>${word}</b> <span style="color: gray;">${ipa}</span><br>
-          <b>Definition:</b> ${definition}<br>
-          <b>Vietnamese:</b> ${translation}<br>
-          <b>Synonyms:</b> ${synonyms}<br><br>
-          <button onclick="speak('${word}')">🔊 Pronounce</button>
-          <button onclick="saveWord('${word}', '${translation.replace(/'/g, "\\'")}', '${synonyms.replace(/'/g, "\\'")}')">📂 Save Word</button>
-        `;
-      } catch (err) {
-        console.error("Error loading word data:", err);
-        definitionBox.innerHTML = `<b>${word}</b><br><span style="color: red;">Failed to load data.</span>`;
+  function loadText() {
+    const input = document.getElementById("textInput").value;
+    const words = input.split(/(\s+)/);
+    const display = document.getElementById("textDisplay");
+    display.innerHTML = '';
+    words.forEach(word => {
+      if (/\s+/.test(word)) {
+        display.appendChild(document.createTextNode(word));
+      } else {
+        const span = document.createElement("span");
+        span.textContent = word;
+        span.className = "word";
+        span.onclick = () => handleClick(word);
+        display.appendChild(span);
       }
-    }
+    });
+  }
 
-    function speak(word) {
-      const utterance = new SpeechSynthesisUtterance(word);
-      utterance.lang = "en-US";
-      synth.speak(utterance);
-    }
+  async function handleClick(word) {
+    const definitionBox = document.getElementById("definitionBox");
+    definitionBox.innerHTML = `<b>${word}</b>... loading...`;
 
-    function saveWord(word, meaning, synonyms) {
-      if (!savedWords.find(w => w.word === word)) {
-        savedWords.push({ word, meaning, synonyms });
-        localStorage.setItem('savedWords', JSON.stringify(savedWords));
-        renderNotebook();
-      }
-    }
+    try {
+      // Dictionary API
+      const dictRes = await fetch(`${workerBase}?url=${encodeURIComponent(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`)}`);
+      const dictData = await dictRes.json();
+      const definition = dictData[0]?.meanings[0]?.definitions[0]?.definition || "No definition found";
+      const ipa = dictData[0]?.phonetics?.[0]?.text || "";
 
-    function renderNotebook() {
-      const tbody = document.querySelector("#savedWordsTable tbody");
-      tbody.innerHTML = '';
-      savedWords.forEach(({ word, meaning, synonyms }) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${word}</td><td>${meaning}</td><td>${synonyms}</td>`;
-        tbody.appendChild(row);
+      // Microsoft Translator (POST body has to go via the worker, so pass method/body)
+      const transRes = await fetch(workerBase, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Proxy-URL": `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=en&to=vi`
+        },
+        body: JSON.stringify([{ Text: word }])
       });
-    }
+      const transData = await transRes.json();
+      const translation = transData[0]?.translations[0]?.text || "(translation failed)";
 
-    function clearNotebook() {
-      localStorage.removeItem('savedWords');
-      savedWords.length = 0;
+      // Datamuse Synonyms
+      const synRes = await fetch(`${workerBase}?url=${encodeURIComponent(`https://api.datamuse.com/words?rel_syn=${word}`)}`);
+      let synData = await synRes.json();
+      if (!synData || synData.length < 2) {
+        const altSynRes = await fetch(`${workerBase}?url=${encodeURIComponent(`https://api.datamuse.com/words?ml=${word}`)}`);
+        synData = await altSynRes.json();
+      }
+      const filtered = synData
+        .map(obj => obj.word)
+        .filter((w, i, arr) => w.toLowerCase() !== word.toLowerCase() && arr.indexOf(w) === i)
+        .slice(0, 5);
+      const synonyms = filtered.length > 0 ? filtered.join(', ') : "(none)";
+
+      definitionBox.innerHTML = `
+        <b>${word}</b> <span style="color: gray;">${ipa}</span><br>
+        <b>Definition:</b> ${definition}<br>
+        <b>Vietnamese:</b> ${translation}<br>
+        <b>Synonyms:</b> ${synonyms}<br><br>
+        <button onclick="speak('${word}')">🔊 Pronounce</button>
+        <button onclick="saveWord('${word}', '${translation.replace(/'/g, "\\'")}', '${synonyms.replace(/'/g, "\\'")}')">📂 Save Word</button>
+      `;
+    } catch (err) {
+      console.error("Error loading word data:", err);
+      definitionBox.innerHTML = `<b>${word}</b><br><span style="color: red;">Failed to load data.</span>`;
+    }
+  }
+
+  function speak(word) {
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = "en-US";
+    synth.speak(utterance);
+  }
+
+  function saveWord(word, meaning, synonyms) {
+    if (!savedWords.find(w => w.word === word)) {
+      savedWords.push({ word, meaning, synonyms });
+      localStorage.setItem('savedWords', JSON.stringify(savedWords));
       renderNotebook();
     }
+  }
 
-    function exportCSV() {
-      let csv = 'Word,Meaning,Thesaurus\n';
-      savedWords.forEach(w => {
-        csv += `${w.word},${w.meaning},${w.synonyms}\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'notebook.csv';
-      a.click();
-    }
+  function renderNotebook() {
+    const tbody = document.querySelector("#savedWordsTable tbody");
+    tbody.innerHTML = '';
+    savedWords.forEach(({ word, meaning, synonyms }) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${word}</td><td>${meaning}</td><td>${synonyms}</td>`;
+      tbody.appendChild(row);
+    });
+  }
 
-    function exportPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.setFontSize(14);
-      doc.text("Saved Words", 10, 10);
-      let y = 20;
-      savedWords.forEach(({ word, meaning, synonyms }) => {
-        doc.text(`${word}: ${meaning} | Synonyms: ${synonyms}`, 10, y);
-        y += 10;
-      });
-      doc.save("notebook.pdf");
-    }
-
+  function clearNotebook() {
+    localStorage.removeItem('savedWords');
+    savedWords.length = 0;
     renderNotebook();
-  </script>
+  }
+
+  function exportCSV() {
+    let csv = 'Word,Meaning,Thesaurus\n';
+    savedWords.forEach(w => {
+      csv += `${w.word},${w.meaning},${w.synonyms}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'notebook.csv';
+    a.click();
+  }
+
+  function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("Saved Words", 10, 10);
+    let y = 20;
+    savedWords.forEach(({ word, meaning, synonyms }) => {
+      doc.text(`${word}: ${meaning} | Synonyms: ${synonyms}`, 10, y);
+      y += 10;
+    });
+    doc.save("notebook.pdf");
+  }
+
+  renderNotebook();
+</script>
+
 </body>
 </html>
