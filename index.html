@@ -5,119 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Interactive Reading</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #f9f9f9;
-      color: #333;
-    }
-    header {
-      padding: 20px;
-      background-color: #4CAF50;
-      color: white;
-    }
-    textarea {
-      width: 100%;
-      height: 100px;
-      font-size: 16px;
-      padding: 10px;
-      margin: 10px 0;
-    }
-    button {
-      margin: 5px 5px 5px 0;
-      padding: 6px 12px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-
-    .container {
-      display: flex;
-      flex-direction: row;
-      padding: 20px;
-      gap: 20px;
-    }
-
-    #textColumn {
-      flex: 2;
-      min-width: 60%;
-    }
-
-    #infoColumn {
-      flex: 1;
-      min-width: 35%;
-      position: sticky;
-      top: 10px;
-      align-self: flex-start;
-      max-height: 95vh;
-      overflow-y: auto;
-      background: #f1f1f1;
-      padding: 10px;
-      border-left: 2px solid #ccc;
-    }
-
-    #textDisplay {
-      line-height: 1.6;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      background: #fff;
-      min-height: 150px;
-    }
-
-    .word {
-      cursor: pointer;
-      padding: 2px;
-      border-radius: 4px;
-    }
-    .word:hover {
-      background-color: #e0f7fa;
-    }
-
-    #definitionBox {
-      margin-top: 15px;
-      padding: 10px;
-      border: 1px solid #aaa;
-      background: #eef;
-    }
-
-    #notebook {
-      margin-top: 30px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px;
-      font-size: 14px;
-    }
-
-    @media (max-width: 768px) {
-      .container {
-        flex-direction: column;
-      }
-    }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; color: #333; }
+    header { padding: 20px; background-color: #4CAF50; color: white; }
+    textarea { width: 100%; height: 100px; font-size: 16px; padding: 10px; margin: 10px 0; }
+    button { margin: 5px 5px 5px 0; padding: 6px 12px; font-size: 14px; cursor: pointer; }
+    .container { display: flex; flex-direction: row; padding: 20px; gap: 20px; }
+    #textColumn { flex: 2; min-width: 60%; }
+    #infoColumn { flex: 1; min-width: 35%; position: sticky; top: 10px; align-self: flex-start; max-height: 95vh; overflow-y: auto; background: #f1f1f1; padding: 10px; border-left: 2px solid #ccc; }
+    #textDisplay { line-height: 1.6; padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; min-height: 150px; }
+    .word { cursor: pointer; padding: 2px; border-radius: 4px; }
+    .word:hover { background-color: #e0f7fa; }
+    #definitionBox { margin-top: 15px; padding: 10px; border: 1px solid #aaa; background: #eef; }
+    #notebook { margin-top: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; font-size: 14px; }
+    @media (max-width: 768px) { .container { flex-direction: column; } }
   </style>
 </head>
 <body>
-
   <header>
     <h2>📖 Interactive Reading</h2>
-    <textarea id="textInput" placeholder="Paste your text here..."></textarea>
-    <br>
+    <textarea id="textInput" placeholder="Paste your text here..."></textarea><br>
     <button onclick="loadText()">Load Text</button>
   </header>
-
   <div class="container">
     <div id="textColumn">
       <div id="textDisplay"></div>
     </div>
-
     <div id="infoColumn">
       <div id="definitionBox">Click on any word to get its info.</div>
       <div id="notebook">
@@ -135,11 +49,11 @@
     </div>
   </div>
 
-  <!-- JS remains unchanged -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script>
- const savedWords = JSON.parse(localStorage.getItem('savedWords') || '[]');
+    const savedWords = JSON.parse(localStorage.getItem('savedWords') || '[]');
     const synth = window.speechSynthesis;
+    const workerBase = 'https://young-tree-620c.chauminh911.workers.dev?url=';
 
     function loadText() {
       const input = document.getElementById("textInput").value;
@@ -160,57 +74,51 @@
     }
 
     async function handleClick(word) {
-  const definitionBox = document.getElementById("definitionBox");
-  definitionBox.innerHTML = `<b>${word}</b>... loading...`;
+      const definitionBox = document.getElementById("definitionBox");
+      definitionBox.innerHTML = `<b>${word}</b>... loading...`;
 
-  try {
-    const defRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
-    const defData = await defRes.json();
-    const definition = defData[0]?.meanings[0]?.definitions[0]?.definition || "No definition found";
-    const ipa = defData[0]?.phonetics?.[0]?.text || "";
+      try {
+        // Dictionary API
+        const dictRes = await fetch(workerBase + encodeURIComponent(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`));
+        const dictData = await dictRes.json();
+        const definition = dictData[0]?.meanings[0]?.definitions[0]?.definition || "No definition found";
+        const ipa = dictData[0]?.phonetics?.[0]?.text || "";
 
-    const transRes = await fetch("https://plain-snow-e164.chauminh911.workers.dev", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify([{ Text: word }])
-});
+        // Microsoft Translator
+        const transRes = await fetch(workerBase + encodeURIComponent('https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=en&to=vi'), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify([{ Text: word }])
+        });
+        const transData = await transRes.json();
+        const translation = transData[0]?.translations[0]?.text || "(translation failed)";
 
-    const transData = await transRes.json();
-    const translation = transData[0]?.translations[0]?.text || "(translation failed)";
+        // Datamuse Synonyms
+        const synRes = await fetch(workerBase + encodeURIComponent(`https://api.datamuse.com/words?rel_syn=${word}`));
+        let synData = await synRes.json();
+        if (!synData || synData.length < 2) {
+          const altSynRes = await fetch(workerBase + encodeURIComponent(`https://api.datamuse.com/words?ml=${word}`));
+          synData = await altSynRes.json();
+        }
+        const filtered = synData
+          .map(obj => obj.word)
+          .filter((w, i, arr) => w.toLowerCase() !== word.toLowerCase() && arr.indexOf(w) === i)
+          .slice(0, 5);
+        const synonyms = filtered.length > 0 ? filtered.join(', ') : "(none)";
 
-    let synonyms = "(none)";
-    try {
-      const synRes = await fetch(`https://api.datamuse.com/words?rel_syn=${word}`);
-      let synData = await synRes.json();
-      if (!synData || synData.length < 2) {
-        const altSynRes = await fetch(`https://api.datamuse.com/words?ml=${word}`);
-        synData = await altSynRes.json();
+        definitionBox.innerHTML = `
+          <b>${word}</b> <span style="color: gray;">${ipa}</span><br>
+          <b>Definition:</b> ${definition}<br>
+          <b>Vietnamese:</b> ${translation}<br>
+          <b>Synonyms:</b> ${synonyms}<br><br>
+          <button onclick="speak('${word}')">🔊 Pronounce</button>
+          <button onclick="saveWord('${word}', '${translation.replace(/'/g, "\\'")}', '${synonyms.replace(/'/g, "\\'")}')">📂 Save Word</button>
+        `;
+      } catch (err) {
+        console.error("Error loading word data:", err);
+        definitionBox.innerHTML = `<b>${word}</b><br><span style="color: red;">Failed to load data.</span>`;
       }
-
-      const filtered = synData
-        .map(obj => obj.word)
-        .filter((w, i, arr) => w.toLowerCase() !== word.toLowerCase() && arr.indexOf(w) === i)
-        .slice(0, 5);
-      synonyms = filtered.length > 0 ? filtered.join(', ') : "(none)";
-    } catch (e) {
-      console.error("Synonym fetch error:", e);
-      synonyms = "(error)";
     }
-
-    definitionBox.innerHTML = `
-      <b>${word}</b> <span style="color: gray;">${ipa}</span><br>
-      <b>Definition:</b> ${definition}<br>
-      <b>Vietnamese:</b> ${translation}<br>
-      <b>Synonyms:</b> ${synonyms}<br><br>
-      <button onclick="speak('${word}')">🔊 Pronounce</button>
-      <button onclick="saveWord('${word}', '${translation.replace(/'/g, "\\'")}', '${synonyms.replace(/'/g, "\\'")}')">💾 Save Word</button>
-    `;
-  } catch (err) {
-    console.error("Error loading word data:", err);
-    definitionBox.innerHTML = `<b>${word}</b><br><span style="color: red;">Failed to load data.</span>`;
-  }
-}
-
 
     function speak(word) {
       const utterance = new SpeechSynthesisUtterance(word);
@@ -269,7 +177,6 @@
     }
 
     renderNotebook();
-
   </script>
 </body>
 </html>
