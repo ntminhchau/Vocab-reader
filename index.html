@@ -74,8 +74,10 @@
   }
 
   async function handleClick(word) {
-    const definitionBox = document.getElementById("definitionBox");
-    definitionBox.innerHTML = `<b>${word}</b>... loading...`;
+    word = word.replace(/^[^\w]+|[^\w]+$/g, "").toLowerCase();
+
+  const definitionBox = document.getElementById("definitionBox");
+  definitionBox.innerHTML = `<b>${word}</b>... loading...`;
 
     try {
       // Dictionary API
