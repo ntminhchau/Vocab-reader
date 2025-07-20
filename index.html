@@ -85,14 +85,14 @@
       const ipa = dictData[0]?.phonetics?.[0]?.text || "";
 
       // Microsoft Translator (POST body has to go via the worker, so pass method/body)
-      const transRes = await fetch(workerBase, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Proxy-URL": `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=en&to=vi`
-        },
-        body: JSON.stringify([{ Text: word }])
-      });
+      const msUrl = "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=en&to=vi";
+const transRes = await fetch(`${workerBase}?url=${encodeURIComponent(msUrl)}`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify([{ Text: word }])
+});
       const transData = await transRes.json();
       const translation = transData[0]?.translations[0]?.text || "(translation failed)";
 
